@@ -1,0 +1,98 @@
+CAPSTONE THREE: MODEL METRICS FILE
+Natural Scene Classification (Intel Image Classification Dataset)
+====================================================================
+
+Dataset split: 11,928 training / 2,106 validation / 3,000 test images
+across 6 classes (buildings, forest, glacier, mountain, sea, street)
+
+
+--------------------------------------------------------------------
+MODEL 1: Random Forest (baseline, engineered features)
+--------------------------------------------------------------------
+Features (7, standardized with StandardScaler fit on train only):
+  - mean_R, mean_G, mean_B      (average pixel intensity per channel)
+  - brightness                  (grayscale mean)
+  - contrast                    (grayscale standard deviation)
+  - edge_density                (fraction of Canny edge pixels)
+  - blue_fraction                (fraction of pixels in blue HSV range)
+
+Hyperparameters:
+  - n_estimators   = 300
+  - max_depth      = 12
+  - random_state   = 42
+
+Performance (validation set):
+  - Accuracy   = 0.535
+  - Macro F1   = 0.524
+
+
+--------------------------------------------------------------------
+MODEL 2: CNN (trained from scratch, raw pixels)
+--------------------------------------------------------------------
+Architecture:
+  Conv2D(32, 3x3, relu) -> MaxPool
+  Conv2D(64, 3x3, relu) -> MaxPool
+  Conv2D(128, 3x3, relu) -> MaxPool
+  Flatten -> Dropout(0.5) -> Dense(128, relu) -> Dense(6, softmax)
+
+Hyperparameters:
+  - Input size       = 150x150x3, pixels normalized to [0,1]
+  - Optimizer        = Adam
+  - Loss             = sparse_categorical_crossentropy
+  - Batch size       = 32
+  - Max epochs       = 15 (EarlyStopping on val_accuracy, patience=3,
+                            restore_best_weights=True)
+
+Performance (validation set):
+  - Accuracy   = 0.813
+  - Macro F1   = 0.814
+
+
+--------------------------------------------------------------------
+MODEL 3: Transfer Learning -- MobileNetV2 (SELECTED FINAL MODEL)
+--------------------------------------------------------------------
+Architecture:
+  Rescaling([0,1] -> [-1,1])
+  -> MobileNetV2 backbone (ImageNet weights, frozen, include_top=False)
+  -> GlobalAveragePooling2D
+  -> Dropout(0.3)
+  -> Dense(6, softmax)
+
+Hyperparameters:
+  - Input size       = 150x150x3
+  - Base model        = frozen (trainable = False)
+  - Optimizer        = Adam
+  - Loss             = sparse_categorical_crossentropy
+  - Batch size       = 32
+  - Max epochs       = 10 (EarlyStopping on val_accuracy, patience=3,
+                            restore_best_weights=True)
+
+Performance (validation set):
+  - Accuracy   = 0.901
+  - Macro F1   = 0.903
+
+Performance (FINAL, held-out TEST set -- evaluated once, after model
+selection was already locked in on the validation set above):
+  - Accuracy   = 0.906
+  - Macro F1   = 0.909
+
+  Per-class test performance:
+                precision   recall   f1-score   support
+  buildings       0.94       0.91      0.92        437
+  forest          0.98       0.99      0.99        474
+  glacier         0.81       0.86      0.84        553
+  mountain        0.87       0.81      0.84        525
+  sea             0.94       0.94      0.94        510
+  street          0.92       0.94      0.93        501
+
+
+--------------------------------------------------------------------
+MODEL SELECTION SUMMARY
+--------------------------------------------------------------------
+Model                                  Val Accuracy   Val Macro F1
+Transfer Learning (MobileNetV2)          0.901          0.903
+CNN (from scratch)                       0.813          0.814
+Random Forest (engineered features)      0.535          0.524
+
+Selected: Transfer Learning (MobileNetV2), based on highest validation
+macro F1. Final test accuracy: 0.906 | Final test macro F1: 0.909
